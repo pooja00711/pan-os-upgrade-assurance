@@ -524,25 +524,27 @@ class CheckFirewall:
         result = CheckResult()
 
         response = self._node.get_ntp_servers()
-        if response["synched"] == "LOCAL":
-            if len(response) == 1:
-                result.reason = "No NTP server configured."
-                result.status = CheckStatus.ERROR
+        if "synched" in response:
+            if response["synched"] == "LOCAL":
+                if len(response) == 1:
+                    result.reason = "No NTP server configured."
+                    result.status = CheckStatus.ERROR
+                else:
+                    del response["synched"]
+                    srvs_state = ""
+                    for v in response.values():
+                        srvs_state += f"{v['name']} - {v['status']}, "
+                    result.reason = f"No NTP synchronization in active, servers in following state: {srvs_state[:-2]}."
             else:
+                synched = response["synched"]
                 del response["synched"]
-                srvs_state = ""
-                for v in response.values():
-                    srvs_state += f"{v['name']} - {v['status']}, "
-                result.reason = f"No NTP synchronization in active, servers in following state: {srvs_state[:-2]}."
+    
+                if synched in [v["name"] for v in response.values()]:
+                    result.status = CheckStatus.SUCCESS
+                else:
+                    result.reason = f"NTP synchronization in unknown state: {synched}."
         else:
-            synched = response["synched"]
-            del response["synched"]
-
-            if synched in [v["name"] for v in response.values()]:
-                result.status = CheckStatus.SUCCESS
-            else:
-                result.reason = f"NTP synchronization in unknown state: {synched}."
-
+            result.reason = "No NTP server configured."
         return result
 
     def check_arp_entry(self, ip: Optional[str] = None, interface: Optional[str] = None) -> CheckResult:
